@@ -1,95 +1,65 @@
+meson setup build --prefix=/usr/local
+ninja -C build
+sudo ninja -C build install
+sudo ldconfig
 
+# Override + restart (same as Option A)
+sudo mkdir -p /etc/systemd/system/fprintd.service.d
+sudo tee /etc/systemd/system/fprintd.service.d/override.conf >/dev/null <<'EOF'
+[Service]
+Environment="LD_LIBRARY_PATH=/usr/local/lib64"
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart fprintd
+```
 
-<div align="center">
+---
 
-# LibFPrint
+## 6. How to Fully Revert (go back to stock)
 
-*LibFPrint is part of the **[FPrint][Website]** project.*
+If you ever want to remove the custom driver and go back to Fedora's default behavior:
 
-<br/>
+```bash
+# Remove the systemd override
+sudo rm -f /etc/systemd/system/fprintd.service.d/override.conf
+sudo systemctl daemon-reload
 
-[![Button Website]][Website]
-[![Button Documentation]][Documentation]
+# Reinstall stock packages
+sudo dnf reinstall -y libfprint fprintd
+sudo ldconfig
+sudo systemctl restart fprintd
+```
 
-[![Button Supported]][Supported]
-[![Button Unsupported]][Unsupported]
+---
 
-[![Button Contribute]][Contribute]
-[![Button Contributors]][Contributors]
+## 7. Useful Diagnostic Commands
 
-</div>
+| Command | Purpose |
+| ------- | ------- |
+| `lsusb \| grep 04f3` | Confirm the sensor is connected |
+| `fprintd-list $USER` | List detected readers + enrolled fingers |
+| `fprintd-enroll` | Enroll a new fingerprint (CLI) |
+| `fprintd-verify $USER` | Test a fingerprint match |
+| `systemctl status fprintd` | Check the daemon is running |
+| `systemctl show fprintd \| grep Environment` | Check the override is loaded |
+| `journalctl -u fprintd` | View fprintd logs (e.g. "Device was already claimed") |
+| `ls -la /usr/local/lib64/libfprint*` | Confirm the custom library exists |
 
-## History
+---
 
-**LibFPrint** was originally developed as part of an
-academic project at the **[University Of Manchester]**.
+## 8. Troubleshooting Tips
 
-It aimed to hide the differences between consumer
-fingerprint scanners and provide a single uniform
-API to application developers.
+- **"Device was already claimed"** in logs → A previous enrollment window is still holding the
+  sensor. Close System Settings (or restart fprintd: `sudo systemctl restart fprintd`) and retry.
+- **Enrollment hangs near the end** → Click Cancel; the print is saved anyway (driver quirk).
+- **"No devices available" after an update** → See section 5 (diagnose, then re-run the build).
+- **Fingerprint not offered at sudo/login** → Check `grep fprint /etc/pam.d/system-auth` returns
+  `auth sufficient pam_fprintd.so`. If missing, the PAM line was removed by an update; add it back:
+  ```bash
+  echo 'auth        sufficient    pam_fprintd.so' | sudo tee -a /etc/pam.d/system-auth
+  ```
 
-## Goal
+---
 
-The ultimate goal of the **FPrint** project is to make
-fingerprint scanners widely and easily usable under
-common Linux environments.
+*Generated: 2026-09-08. Driver source: Depau/libfprint `elanmoc2` branch (stored at `~/Repositories/elanmoc2`). Sensor: ELAN 04f3:0c00.*
 
-## License
-
-`Section 6` of the license states that for compiled works that use
-this library, such works must include **LibFPrint** copyright notices
-alongside the copyright notices for the other parts of the work.
-
-**LibFPrint** includes code from **NIST's** **[NBIS]** software distribution.
-
-We include **Bozorth3** from the **[US Export Controlled]**
-distribution, which we have determined to be fine
-being shipped in an open source project.
-
-## Get in *touch*
-
- - [IRC] - `#fprint` @ `irc.oftc.net`
- - [Matrix] - `#fprint:matrix.org` bridged to the IRC channel
- - [MailingList] - low traffic, not much used these days
-
-<br/>
-
-<div align="right">
-
-[![Badge License]][License]
-
-</div>
-
-
-<!----------------------------------------------------------------------------->
-
-[Documentation]: https://fprint.freedesktop.org/libfprint-dev/
-[Contributors]: https://gitlab.freedesktop.org/libfprint/libfprint/-/graphs/master
-[Unsupported]: https://gitlab.freedesktop.org/libfprint/wiki/-/wikis/Unsupported-Devices
-[Supported]: https://fprint.freedesktop.org/supported-devices.html
-[Website]: https://fprint.freedesktop.org/
-[MailingList]: https://lists.freedesktop.org/mailman/listinfo/fprint
-[IRC]: ircs://irc.oftc.net:6697/#fprint
-[Matrix]: https://matrix.to/#/#fprint:matrix.org
-
-[Contribute]: ./HACKING.md
-[License]: ./COPYING
-
-[University Of Manchester]: https://www.manchester.ac.uk/
-[US Export Controlled]: https://fprint.freedesktop.org/us-export-control.html
-[NBIS]: http://fingerprint.nist.gov/NBIS/index.html
-
-
-<!---------------------------------[ Badges ]---------------------------------->
-
-[Badge License]: https://img.shields.io/badge/License-LGPL2.1-015d93.svg?style=for-the-badge&labelColor=blue
-
-
-<!---------------------------------[ Buttons ]--------------------------------->
-
-[Button Documentation]: https://img.shields.io/badge/Documentation-04ACE6?style=for-the-badge&logoColor=white&logo=BookStack
-[Button Contributors]: https://img.shields.io/badge/Contributors-FF4F8B?style=for-the-badge&logoColor=white&logo=ActiGraph
-[Button Unsupported]: https://img.shields.io/badge/Unsupported_Devices-EF2D5E?style=for-the-badge&logoColor=white&logo=AdBlock
-[Button Contribute]: https://img.shields.io/badge/Contribute-66459B?style=for-the-badge&logoColor=white&logo=Git
-[Button Supported]: https://img.shields.io/badge/Supported_Devices-428813?style=for-the-badge&logoColor=white&logo=AdGuard
-[Button Website]: https://img.shields.io/badge/Homepage-3B80AE?style=for-the-badge&logoColor=white&logo=freedesktopDotOrg
